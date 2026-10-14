@@ -13,11 +13,19 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"google.golang.org/protobuf/encoding/protojson"
+)
+
+//Escape codes for colored server status output
+const (
+    ColorReset  = "\033[0m"
+    ColorRed    = "\033[31m"
+    ColorGreen  = "\033[32m"
+    ColorBlue   = "\033[34m"
+    ColorCyan   = "\033[36m"
 )
 
 var (
-	serverCmdQueue bool
+	serverCmdVerbose bool
 )
 
 var serverCmd = &cobra.Command{
@@ -126,37 +134,75 @@ var serverStatusCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
+		fmt.Println("Conduit Server")
+		fmt.Println("──────────────")
+
 		resp, err := client.ServerControl(proto.ServerControlAction_SERVER_CONTROL_STATUS)
 		if err != nil {
-			fmt.Printf("server status request failed: %v\n", err)
+			fmt.Printf("State        " + ColorRed + "server status request failed: %v\n" + ColorReset, err)
 		} else {
-			fmt.Printf("conduit server state: %s\n", resp.GetServerState())
+			fmt.Printf("State        " + ColorGreen + "%s\n" + ColorReset, resp.GetServerState())
 		}
 
 		schedResp, err := client.SchedulerInfo()
 		if err != nil {
-			fmt.Printf("server scheduler request failed: %v\n", err)
+			fmt.Printf("Schedulers   " + ColorRed + "server scheduler request failed: %v\n" + ColorReset, err)
 			os.Exit(1)
 		} else {
-			mo := protojson.MarshalOptions{
-				Multiline:       true,
-				EmitUnpopulated: true,
-			}
+			schedulers := schedResp.GetSchedulers()
+			fmt.Printf("Schedulers   %d\n", len(schedulers))
 
-			if !serverCmdQueue {
-				for _, s := range schedResp.GetSchedulers() {
-					s.Queue = []*proto.SchedulerJob{}
+			if serverCmdVerbose {
+				fmt.Println("")
+				for schedID, schedStatus := range schedulers {
+					fmt.Printf("\nScheduler " + ColorBlue + "%s\n" + ColorReset, schedID)
+					fmt.Println("─────────────────────────────────────────────────────────────────────────────")
+					fmt.Printf("Queue Size   %d\n\n", schedStatus.GetQueueSize())
+					
+					fmt.Println("NODE           JOBS     AVAILABLE MEMORY     JOBS VERSION")
+					for nodeID, nodeInfo := range schedStatus.Nodes {
+						fmt.Printf("%s                   %d        %.2f GiB             %d\n", nodeID, len(nodeInfo.GetJobs()), (float64(nodeInfo.GetAvailableMemory()))/(1024*1024*1024), nodeInfo.GetJobsVersion())
+					}
+					
+					fmt.Println("\nJobs")
+					fmt.Println("─────────────────────────────────────────────────────────────────────────────")
+					fmt.Println("NODE		    JOB ID")
+					for nodeID, nodeInfo := range schedStatus.Nodes {
+						for jobID := range nodeInfo.GetJobs() {
+							fmt.Printf("%s                   %s\n", nodeID, jobID)
+						}
+					}
+
+					fmt.Println("\nQueue")
+					fmt.Println("─────────────────────────────────────────────────────────────────────────────")
+					fmt.Println("POSITION                  TRANSFER / JOB")
+					for pos, job := range schedStatus.GetQueue() {
+						fmt.Printf("%-3d                       %s\n", pos + 1, job.GetJobID())
+					}
+					fmt.Printf("\n\n")
+				}
+			} else {
+				fmt.Println("\n\nSchedulers")
+				fmt.Println("─────────────────────────────────────────────────")
+				fmt.Println("SCHEDULER     NODES    JOBS    QUEUED")
+				for schedID, schedStatus := range schedulers {
+					schedJobs := 0
+					for _, nodeInfo := range schedStatus.Nodes {
+						schedJobs += len(nodeInfo.GetJobs())
+					}
+					fmt.Printf("%s      %d        %d       %d\n", schedID[:8], len(schedStatus.Nodes), schedJobs, schedStatus.GetQueueSize())
+				}
+
+				fmt.Println("\n\nNodes")
+				fmt.Println("─────────────────────────────────────────────────")
+				fmt.Println("NODE                   JOBS     AVAILABLE MEMORY")
+				for _, schedStatus := range schedulers {
+					for nodeID, nodeInfo := range schedStatus.Nodes {
+						fmt.Printf("%s       %d        %.2f GiB\n", nodeID, len(nodeInfo.GetJobs()), (float64(nodeInfo.GetAvailableMemory()))/(1024*1024*1024))
+					}
 				}
 			}
-
-			srBytes, err := mo.Marshal(schedResp)
-			if err != nil {
-				fmt.Printf("failed to marshal scheduler info: %v\n", err)
-			}
-
-			fmt.Printf("conduit scheduler state:\n%+v\n", string(srBytes))
 		}
-
 	},
 }
 
@@ -166,5 +212,5 @@ func init() {
 	serverCmd.AddCommand(serverStartCmd)
 	serverCmd.AddCommand(serverStatusCmd)
 
-	serverStatusCmd.Flags().BoolVar(&serverCmdQueue, "queue", false, "Display the entire scheduler queue")
+	serverStatusCmd.Flags().BoolVar(&serverCmdVerbose, "verbose", false, "Display verbose information about the conduit server state")
 }
