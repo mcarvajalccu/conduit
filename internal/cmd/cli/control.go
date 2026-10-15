@@ -159,25 +159,25 @@ var serverStatusCmd = &cobra.Command{
 					fmt.Println("─────────────────────────────────────────────────────────────────────────────")
 					fmt.Printf("Queue Size   %d\n\n", schedStatus.GetQueueSize())
 					
-					fmt.Println("NODE           JOBS     AVAILABLE MEMORY     JOBS VERSION")
+					fmt.Println("NODE                     JOBS     AVAILABLE MEMORY     JOBS VERSION")
 					for nodeID, nodeInfo := range schedStatus.Nodes {
-						fmt.Printf("%s                   %d        %.2f GiB             %d\n", nodeID, len(nodeInfo.GetJobs()), (float64(nodeInfo.GetAvailableMemory()))/(1024*1024*1024), nodeInfo.GetJobsVersion())
+						fmt.Printf("%s         %d        %.2f GiB             %d\n", nodeID, len(nodeInfo.GetJobs()), (float64(nodeInfo.GetAvailableMemory()))/(1024*1024*1024), nodeInfo.GetJobsVersion())
 					}
 					
 					fmt.Println("\nJobs")
 					fmt.Println("─────────────────────────────────────────────────────────────────────────────")
-					fmt.Println("NODE		    JOB ID")
+					fmt.Println("NODE                     JOB ID")
 					for nodeID, nodeInfo := range schedStatus.Nodes {
 						for jobID := range nodeInfo.GetJobs() {
-							fmt.Printf("%s                   %s\n", nodeID, jobID)
+							fmt.Printf("%s         %s\n", nodeID, jobID)
 						}
 					}
 
 					fmt.Println("\nQueue")
 					fmt.Println("─────────────────────────────────────────────────────────────────────────────")
-					fmt.Println("POSITION                  TRANSFER / JOB")
+					fmt.Println("POSITION                 TRANSFER / JOB")
 					for pos, job := range schedStatus.GetQueue() {
-						fmt.Printf("%-3d                       %s\n", pos + 1, job.GetJobID())
+						fmt.Printf("%-3d                      %s\n", pos + 1, job.GetJobID())
 					}
 					fmt.Printf("\n\n")
 				}
